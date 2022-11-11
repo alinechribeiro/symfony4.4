@@ -2,10 +2,10 @@
 
 namespace App\Controller;
 
-use Michelf\MarkdownInterface;
+use App\Service\MarkdownHelper;
+use App\Service\SlackClient;
 use Psr\Log\LoggerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
-use Symfony\Component\Cache\Adapter\AdapterInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
@@ -13,10 +13,21 @@ use Symfony\Component\Routing\Annotation\Route;
 class ArticleController extends AbstractController
 {
     /**
-     * @Route("/")
+     * @param bool $isDebug
+     * Currently unused: just showing a controller with a constructor. :)
+     */
+    private $isDebug;
+
+    public function __construct(bool $isDebug)
+    {
+        $this->isDebug = $isDebug;
+    }
+
+    /**
+     * @Route("/", name="app_homepage")
      * @return Response
      */
-    public function homepage()
+    public function homepage(): Response
     {
         return $this->render('article/homepage.html.twig');
     }
@@ -24,11 +35,15 @@ class ArticleController extends AbstractController
     /**
      * @Route("/news/{slug}", name="article_show")
      * @param $slug
-     * @param MarkdownInterface $markdown
+     * @param MarkdownHelper $markdownHelper
      * @return Response
      */
-    public function show($slug, MarkdownInterface $markdown, AdapterInterface $cache)
+    public function show($slug, MarkdownHelper $markdownHelper, SlackClient $slack): Response
     {
+        if ($slug == 'khaaaaaan') {
+            $slack->sendMessage('Khan', 'Hey hey, Kirk, my old friend!');
+        }
+
         $comments = [
             'First comment: about rockets are awesome!',
             'Once the rockets are released it could reach the moon in few hours',
@@ -65,14 +80,7 @@ Do mollit deserunt prosciutto laborum. Duis sint tongue quis nisi. Capicola qui 
     adipisicing cow cillum tenderloin.
 EOF;
 
-        $item = $cache->getItem('markdown_'.md5($articleContent));
-
-        if (!$item->isHit()) {
-            $item->set($markdown->transform($articleContent));
-            $cache->save($item);
-        }
-
-        $articleContent = $item->get();
+        $articleContent = $markdownHelper->parse($articleContent);
 
         return $this->render('article/show.html.twig', [
             'title' => ucwords(str_replace('-', ' ', $slug)),
@@ -85,7 +93,7 @@ EOF;
     /**
      * @Route("/news/{slug}/heart", name="article_toggle_heart", methods={"POST"})
      */
-    public function toggleArticleHeart($slug, LoggerInterface $logger)
+    public function toggleArticleHeart($slug, LoggerInterface $logger): JsonResponse
     {
         // TODO - actually heart/unheart the article!
 
